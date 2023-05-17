@@ -165,7 +165,7 @@ contract HodlersDAExpSettlement is
     }
 
     // projectId => collection that provides discount => discount percentage and min token Id
-    mapping (uint256 => mapping (address => DiscountData)) discountCollections;
+    mapping (uint256 => mapping (address => DiscountData)) public discountCollections;
 
     // function to restrict access to only AdminACL or the artist
     function _onlyCoreAdminACLOrArtist(
@@ -751,14 +751,17 @@ contract HodlersDAExpSettlement is
         uint256 currentDiscountedPriceInWei = currentPriceInWei;
 
         // discount management
-        if (tokenId != 0) {
+        if (discountToken != 0) {
             require (discountTokensUsed[_projectId][discountToken] == address(0), "Discount token already used");
 
             (address discountTokenContractAddress, uint96 discountTokenId) = decodeDiscountToken(discountToken);
             uint256 discountPercentage = discountCollections[_projectId][discountTokenContractAddress].discountPercentage;
 
-            require( discountPercentage != 0, "Invalid discount collection");
+            require(discountPercentage != 0, "Invalid discount collection");
             require(discountTokenId >= discountCollections[_projectId][discountTokenContractAddress].minTokenId, "Invalid discount token id");
+            
+            // TODO: delegate cash check here
+            // !!!
             require (IERC721(discountTokenContractAddress).ownerOf(discountTokenId) == msg.sender, "Invalid discount token owner");
             
             discountTokensUsed[_projectId][discountToken] = msg.sender;

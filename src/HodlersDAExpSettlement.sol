@@ -9,6 +9,8 @@ import "@openzeppelin-4.7/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin-4.7/contracts/utils/math/SafeCast.sol";
 import "@openzeppelin-4.7/contracts/token/ERC721/IERC721.sol";
 
+import "@delegatecash/IDelegationRegistry.sol";
+
 pragma solidity 0.8.17;
 
 /**
@@ -166,6 +168,8 @@ contract HodlersDAExpSettlement is
 
     // projectId => collection that provides discount => discount percentage and min token Id
     mapping (uint256 => mapping (address => DiscountData)) public discountCollections;
+
+    IDelegationRegistry internal delegationRegistry;
 
     // function to restrict access to only AdminACL or the artist
     function _onlyCoreAdminACLOrArtist(
@@ -664,6 +668,9 @@ contract HodlersDAExpSettlement is
         emit ArtistAndAdminRevenuesWithdrawn(_projectId);
     }
 
+    /**
+     @notice Sets the discount percentage and applicable tokens ids ration for a collection
+     */
     function setDiscountDataForCollection(
         uint256 _projectId,
         address _discountCollectionAddress,
@@ -678,6 +685,11 @@ contract HodlersDAExpSettlement is
 
         discountCollections[_projectId][_discountCollectionAddress].discountPercentage = _discountPercentage;
         discountCollections[_projectId][_discountCollectionAddress].minTokenId = _minTokenIdForDiscount;
+    }
+
+    function setDelegationRegistry(address _delegationRegistry) external {
+        _onlyCoreAdminACL(this.setDelegationRegistry.selector);
+        delegationRegistry = IDelegationRegistry(_delegationRegistry);
     }
 
     /**
@@ -760,9 +772,15 @@ contract HodlersDAExpSettlement is
             require(discountPercentage != 0, "Invalid discount collection");
             require(discountTokenId >= discountCollections[_projectId][discountTokenContractAddress].minTokenId, "Invalid discount token id");
             
-            // TODO: delegate cash check here
-            // !!!
-            require (IERC721(discountTokenContractAddress).ownerOf(discountTokenId) == msg.sender, "Invalid discount token owner");
+            // check if this discount token has been delegated to msg.sender
+            bool delegated = delegationRegistry.checkDelegateForToken(
+                msg.sender,
+                IERC721(discountTokenContractAddress).ownerOf(discountTokenId), 
+                discountTokenContractAddress, 
+                discountTokenId
+            );
+            require (IERC721(discountTokenContractAddress).ownerOf(discountTokenId) == msg.sender
+                || delegated, "Invalid discount token owner");
             
             discountTokensUsed[_projectId][discountToken] = msg.sender;
             discountsUsedPerBuyer[_projectId][msg.sender].push(discountPercentage);

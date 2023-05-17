@@ -2,4 +2,5 @@
 @openzeppelin-4.5/contracts/=lib/openzeppelin-contracts/contracts/
 @openzeppelin-4.7/contracts/=lib/openzeppelin-contracts/contracts/
 @artblocks/=lib/artblocks-contracts/contracts/
+@delegatecash/=lib/delegate-registry/src/
 @std/=lib/forge-std/src/

@@ -86,7 +86,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         // Add discounts
         minter.setDiscountDataForCollection(projectId, address(manifoldGenesis), 50, 0);
         minter.setDiscountDataForCollection(projectId, address(HCPass), 25, 1000);
-
+        minter.setDelegationRegistry(0x00000000000076A84feF008CDAbe6409d2FE638B);
         vm.stopPrank();
 
         // Set default auction details

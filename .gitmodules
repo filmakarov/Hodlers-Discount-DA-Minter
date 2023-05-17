@@ -10,3 +10,6 @@
 	path = lib/artblocks-contracts
 	url = https://github.com/ArtBlocks/artblocks-contracts
 	branch = v1.0.2
+[submodule "lib/delegate-registry"]
+	path = lib/delegate-registry
+	url = https://github.com/delegatecash/delegate-registry

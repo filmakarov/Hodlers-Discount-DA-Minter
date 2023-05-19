@@ -1300,6 +1300,40 @@ contract HodlersDAExpSettlement is
     }
 
     /**
+     * @notice returns if token has been used to mint with a project
+     */
+    function getWasTokenUsedForProject(
+        uint256 _projectId,
+        uint256 _discountToken
+    ) external view returns (bool) {
+        return discountTokensUsed[_projectId][_discountToken] != address(0);
+    }
+
+    /**
+     * @notice returns discount percentage for discountToken for project
+     * @param _projectId Project ID to get discount percentage for.
+     * @param _discountToken Discount token = discount collection address + uint96(tokenId)
+     */
+    function getDiscountPercentageForTokenForProject(
+        uint256 _projectId,
+        uint256 _discountToken
+    ) external view returns (uint256) {
+        if (discountTokensUsed[_projectId][_discountToken] != address(0))
+            revert("Token already used");
+
+        (address discountTokenContractAddress, uint96 discountTokenId) = decodeDiscountToken(_discountToken);
+        uint256 discountPercentage = discountCollections[_projectId][discountTokenContractAddress].discountPercentage;
+
+        if (discountPercentage == 0)
+            revert("This collection provides no discounts");
+        
+        if (discountTokenId < discountCollections[_projectId][discountTokenContractAddress].minTokenId)
+            revert("This tokenId is not eligible for discounts");
+        
+        return discountPercentage;
+    }
+
+    /**
      * @notice Sets the local max invocation values of a project equal to the
      * values on the core contract.
      * @param _projectId Project ID to set the maximum invocations for.

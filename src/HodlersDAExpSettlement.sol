@@ -1336,6 +1336,20 @@ contract HodlersDAExpSettlement is
     }
 
     /**
+     * @notice Returns total amount of native token that was posted by customer for this project
+     */
+    function getNetPosted(uint256 projectId, address customer) public view returns (uint256) {
+        return receipts[customer][projectId].netPosted;
+    }
+
+    /**
+     * @notice Returns an array of discount percentages used by the customer for a project
+     */
+    function getDiscountUsedByAddressForProject(uint256 projectId, address customer) public view returns(uint256[] memory) {
+        return discountsUsedPerBuyer[projectId][customer];
+    }
+
+    /**
      * @notice Sets the local max invocation values of a project equal to the
      * values on the core contract.
      * @param _projectId Project ID to set the maximum invocations for.

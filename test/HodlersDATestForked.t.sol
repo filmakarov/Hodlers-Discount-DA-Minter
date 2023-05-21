@@ -328,7 +328,6 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         minter.setDiscountDataForCollection(projectId, address(0x15a7d047), 25, 100);
     }
 
-    // user can buy with deposit
     function testUserCanBuyWithDeposit() public {
         activateProject(projectId);
         setupDefaultAuction(projectId);
@@ -338,7 +337,6 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         vm.warp(auctionStartTime+1);
 
         (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
-        //console.log("token price in wei right after auc starts ", tokenPriceInWei);
         uint256 discountToken = buildDiscountToken(address(manifoldGenesis), 0);
         uint256 discountPercentage = minter.getDiscountPercentageForTokenForProject(projectId, discountToken);
         uint256 discountedPrice = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage) / ONE_HUNDRED_PERCENT;
@@ -347,14 +345,6 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         minter.purchaseTo_M6P{value: discountedPrice}(customer, projectId, discountToken);
 
         vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*2); 
-        (, tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
-        //console.log("token price in wei 2*halfDecayTime ", tokenPriceInWei); 
-        vm.prank(customer2);
-        minter.purchaseTo_M6P{value: tokenPriceInWei}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
-        
-        //price is now 4x lower than right after auction started
-        //should be able to mint 
-        //console.log("Eth left for user %s %i", customer, minter.getProjectExcessSettlementFunds(projectId, customer));
         vm.prank(customer);
         minter.purchaseTo_M6P{value: 0}(customer, projectId, ZERO_DISCOUNT_TOKEN);
 
@@ -368,20 +358,27 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         vm.warp(auctionStartTime+1);
 
         (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
-        uint256 discountToken = buildDiscountToken(address(manifoldGenesis), 0);
-        uint256 discountPercentage = minter.getDiscountPercentageForTokenForProject(projectId, discountToken);
-        uint256 discountedPrice = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage) / ONE_HUNDRED_PERCENT;
-        uint256 netPosted = discountedPrice;
+        uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
+        uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
+        uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
+        uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
           
-        vm.prank(customer);
-        minter.purchaseTo_M6P{value: discountedPrice}(customer, projectId, discountToken);
+        vm.startPrank(customer);
+        minter.purchaseTo_M6P{value: discountedPrice1}(customer, projectId, discountToken1);
+        minter.purchaseTo_M6P{value: discountedPrice2}(customer, projectId, discountToken2);
+        vm.stopPrank();
+        uint256 netPosted = discountedPrice1 + discountedPrice2;
 
         vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*2); 
         (, tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
         vm.prank(customer2);
         minter.purchaseTo_M6P{value: tokenPriceInWei}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
         
-        uint256 expectedExcessSettlement = netPosted - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage) / ONE_HUNDRED_PERCENT;
+        uint256 expectedExcessSettlement = netPosted 
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
 
         assertEq(expectedExcessSettlement, minter.getProjectExcessSettlementFunds(projectId, customer));
     }

@@ -43,6 +43,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
     address artistAddress;
     address abAdminAddress;
     address customer;
+    address customer2;
 
     uint256 auctionStartTime;
     uint256 priceDecayHalfLifeSeconds;
@@ -102,6 +103,9 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         vm.deal(customer, 100*1e18);
         manifoldGenesis.mint(customer, 0);
         HCPass.mint(customer, 1000);
+
+        customer2 = address(0xb0bb0bb0b);
+        vm.deal(customer2, 100*1e18);
     }
 
     function testSetupSuccessful() public {
@@ -325,6 +329,62 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
     }
 
     // user can buy with deposit
+    function testUserCanBuyWithDeposit() public {
+        activateProject(projectId);
+        setupDefaultAuction(projectId);
+
+        uint256 balanceOfCustomerBefore = genArt721CoreV3.balanceOf(customer);
+
+        vm.warp(auctionStartTime+1);
+
+        (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        //console.log("token price in wei right after auc starts ", tokenPriceInWei);
+        uint256 discountToken = buildDiscountToken(address(manifoldGenesis), 0);
+        uint256 discountPercentage = minter.getDiscountPercentageForTokenForProject(projectId, discountToken);
+        uint256 discountedPrice = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage) / ONE_HUNDRED_PERCENT;
+          
+        vm.prank(customer);
+        minter.purchaseTo_M6P{value: discountedPrice}(customer, projectId, discountToken);
+
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*2); 
+        (, tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        //console.log("token price in wei 2*halfDecayTime ", tokenPriceInWei); 
+        vm.prank(customer2);
+        minter.purchaseTo_M6P{value: tokenPriceInWei}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
+        
+        //price is now 4x lower than right after auction started
+        //should be able to mint 
+        //console.log("Eth left for user %s %i", customer, minter.getProjectExcessSettlementFunds(projectId, customer));
+        vm.prank(customer);
+        minter.purchaseTo_M6P{value: 0}(customer, projectId, ZERO_DISCOUNT_TOKEN);
+
+        assertEq(genArt721CoreV3.balanceOf(customer), balanceOfCustomerBefore + 2);
+    }
+
+    function testExcessSettlementIsCalulatedCorrectly() public {
+        activateProject(projectId);
+        setupDefaultAuction(projectId);
+
+        vm.warp(auctionStartTime+1);
+
+        (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        uint256 discountToken = buildDiscountToken(address(manifoldGenesis), 0);
+        uint256 discountPercentage = minter.getDiscountPercentageForTokenForProject(projectId, discountToken);
+        uint256 discountedPrice = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage) / ONE_HUNDRED_PERCENT;
+        uint256 netPosted = discountedPrice;
+          
+        vm.prank(customer);
+        minter.purchaseTo_M6P{value: discountedPrice}(customer, projectId, discountToken);
+
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*2); 
+        (, tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        vm.prank(customer2);
+        minter.purchaseTo_M6P{value: tokenPriceInWei}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
+        
+        uint256 expectedExcessSettlement = netPosted - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage) / ONE_HUNDRED_PERCENT;
+
+        assertEq(expectedExcessSettlement, minter.getProjectExcessSettlementFunds(projectId, customer));
+    }
 
     // user can get correct settlement amount when buying with discount and deposit after auction soldout
 

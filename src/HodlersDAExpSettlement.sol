@@ -11,6 +11,8 @@ import "@openzeppelin-4.7/contracts/token/ERC721/IERC721.sol";
 
 import "@delegatecash/IDelegationRegistry.sol";
 
+//import {console} from "@std/console.sol";
+
 pragma solidity 0.8.17;
 
 /**

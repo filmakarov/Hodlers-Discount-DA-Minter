@@ -246,6 +246,7 @@ contract HodlersDAExpSettlement is
         );
         manifoldGenesisAddress = _manifoldGenesisAddress;
         hodlersCollectivePassAddress = _hodlersCollectivePassAddress;
+        delegationRegistry = IDelegationRegistry(0x00000000000076A84feF008CDAbe6409d2FE638B);
     }
 
     /**

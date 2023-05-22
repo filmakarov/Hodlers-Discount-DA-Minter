@@ -22,7 +22,16 @@ contract DeployDiscountedDA is Script {
         address manifoldGenesisAddress = 0xEAC5e94C543cE2211B695bd69bd0D5ff3C4A21e1; // mainnet
         address hodlersCollectivePassAddress = 0xD00495689D5161C511882364E0C342e12Dcc5f08; //mainnet
 
-        Minter = new HodlersDAExpSettlement(genArt721Core, filter, manifoldGenesisAddress, hodlersCollectivePassAddress);
+        Minter = new HodlersDAExpSettlement(
+            genArt721Core, 
+            filter, 
+            manifoldGenesisAddress, 
+            hodlersCollectivePassAddress
+        );
+
+        // What you need to do manually after deployment
+        //filter.addApprovedMinter(address(minter));
+        //filter.setMinterForProject(projectId, address(minter));
         
         vm.stopBroadcast();
 

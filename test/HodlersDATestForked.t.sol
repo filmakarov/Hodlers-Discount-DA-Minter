@@ -93,10 +93,6 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         vm.startPrank(0x8cc0019C16bced6891a96d32FF36FeAB4A663a40); //admin
         filter.addApprovedMinter(address(minter));
         filter.setMinterForProject(projectId, address(minter));
-
-        // Configure Minter
-        // Add discounts
-        minter.setDelegationRegistry(0x00000000000076A84feF008CDAbe6409d2FE638B);
         vm.stopPrank();
 
         // Set default auction details

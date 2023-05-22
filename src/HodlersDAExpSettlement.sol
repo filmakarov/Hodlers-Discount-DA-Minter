@@ -818,7 +818,8 @@ contract HodlersDAExpSettlement is
         // update latest purchase price (on this minter) in storage
         // @dev this is used to enforce monotonically decreasing purchase price
         // across multiple auctions
-        // we sent normal, not discounted price here
+        // we set normal, not discounted price here as it should reflect the price decreasing dynamics
+        // it should have been called `latestUndiscountedPurchasePrice`, I do not rename it for consistency
         _projectConfig.latestPurchasePrice = currentPriceInWei;
 
         tokenId = minterFilter.mint(_to, _projectId, msg.sender);

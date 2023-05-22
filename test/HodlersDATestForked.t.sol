@@ -495,13 +495,243 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
     }
 
     // users can claim settlements several times - before price has settled and then the rest after is has settled
+    function testCanReclaimExcessSettlementFundsSeveralTimes() public {
+        activateProject(projectId);
+        setupDefaultAuction(projectId);
+
+        vm.warp(auctionStartTime+1);
+        (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
+        uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
+        uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
+        uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+          
+        vm.startPrank(customer);
+        minter.purchaseTo_M6P{value: discountedPrice1}(customer, projectId, discountToken1);
+        minter.purchaseTo_M6P{value: discountedPrice2}(customer, projectId, discountToken2);
+        vm.stopPrank();
+        uint256 netPosted = discountedPrice1 + discountedPrice2;
+
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*2);
+        (, tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        vm.prank(customer2);
+        minter.purchaseTo_M6P{value: tokenPriceInWei}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
+
+        uint256 expectedExcessSettlement = netPosted
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+
+        assertEq(expectedExcessSettlement, minter.getProjectExcessSettlementFunds(projectId, customer));
+
+        uint256 customerETHBalanceBefore = customer.balance;
+        vm.prank(customer);
+        minter.reclaimProjectExcessSettlementFunds(projectId);
+        uint256 customerETHBalanceAfterFirstReclaim = customer.balance;
+        assertEq(customerETHBalanceAfterFirstReclaim, customerETHBalanceBefore+expectedExcessSettlement);
+
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*4);
+        (, tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        vm.prank(customer2);
+        minter.purchaseTo_M6P{value: tokenPriceInWei}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
+        expectedExcessSettlement = netPosted - expectedExcessSettlement
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+
+        assertEq(expectedExcessSettlement, minter.getProjectExcessSettlementFunds(projectId, customer));
+        vm.prank(customer);
+        minter.reclaimProjectExcessSettlementFunds(projectId);
+        assertEq(customer.balance, customerETHBalanceAfterFirstReclaim + expectedExcessSettlement);
+    }
 
     // admin can claim funds when collection is soldout at base price and users can get setllements correctly
+    function testAdminCanClaimFundsAfterAuctionSoldoutAndUsersCanGetSettlements() public {
+        activateProject(projectId);
+        setupDefaultAuction(projectId);
+
+        vm.warp(auctionStartTime+1);
+        (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
+        uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
+        uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
+        uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+          
+        vm.startPrank(customer);
+        minter.purchaseTo_M6P{value: discountedPrice1}(customer, projectId, discountToken1);
+        minter.purchaseTo_M6P{value: discountedPrice2}(customer, projectId, discountToken2);
+        vm.stopPrank();
+
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*3);
+        (, uint256 tokenPriceInWei2, , ) = minter.getPriceInfo(projectId);
+        vm.prank(customer2);
+        minter.purchaseTo_M6P{value: tokenPriceInWei2}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
+
+        uint256 numberOfDecaysRequiredToSettlePrice = 4;
+        waitForPriceSettlementAndSelloutAuction(numberOfDecaysRequiredToSettlePrice, projectId);
+        
+        (, uint256 tokenPriceInWeiFinal, , ) = minter.getPriceInfo(projectId);
+        uint256 adminBalanceBefore = abAdminAddress.balance;
+        vm.prank(abAdminAddress);
+        minter.withdrawArtistAndAdminRevenues(projectId);
+        (uint256 invocations, uint256 maxInvocations, , , ,) = genArt721CoreV3.projectStateData(projectId);
+        assertEq(invocations, maxInvocations);
+
+        uint256 expectedAdminShare = 
+            (
+                tokenPriceInWeiFinal * (invocations - 2) +
+                tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT + 
+                tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT 
+            )
+            * 
+            genArt721CoreV3.platformProviderPrimarySalesPercentage()/ONE_HUNDRED_PERCENT;
+
+        assertEq(abAdminAddress.balance, adminBalanceBefore + expectedAdminShare);
+        
+        uint256 expectedExcessSettlement = discountedPrice1 + discountedPrice2
+            - tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT
+            - tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+        
+        uint256 expectedExcessSettlement2 = tokenPriceInWei2 - tokenPriceInWeiFinal;
+
+        assertEq(expectedExcessSettlement, minter.getProjectExcessSettlementFunds(projectId, customer));
+        assertEq(expectedExcessSettlement2, minter.getProjectExcessSettlementFunds(projectId, customer2));
+
+        uint256 customerETHBalanceBefore = customer.balance;
+        uint256 customer2ETHBalanceBefore = customer2.balance;
+        vm.prank(customer);
+        minter.reclaimProjectExcessSettlementFunds(projectId);
+        vm.prank(customer2);
+        minter.reclaimProjectExcessSettlementFunds(projectId);
+        assertEq(customer.balance, customerETHBalanceBefore+expectedExcessSettlement);
+        assertEq(customer2.balance, customer2ETHBalanceBefore+expectedExcessSettlement2);
+    }
 
     // admin can claim funds when collection is soldout higher that base price, and users can get setllements correctly
+    function testAdminCanClaimFundsAfterAuctionSoldoutBeforePriceSettledAndUsersCanGetSettlements() public {
+        activateProject(projectId);
+        setupDefaultAuction(projectId);
 
-    // admin can claim funds when the price has settled but collection not soldout yet and sales will be going with instant sending of funds to admin and users can get settlements correctly
+        vm.warp(auctionStartTime+1);
+        (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
+        uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
+        uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
+        uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+          
+        vm.startPrank(customer);
+        minter.purchaseTo_M6P{value: discountedPrice1}(customer, projectId, discountToken1);
+        minter.purchaseTo_M6P{value: discountedPrice2}(customer, projectId, discountToken2);
+        vm.stopPrank();
 
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*2);
+        (, uint256 tokenPriceInWei2, , ) = minter.getPriceInfo(projectId);
+        vm.prank(customer2);
+        minter.purchaseTo_M6P{value: tokenPriceInWei2}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
+        
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*3);
+        (, uint256 tokenPriceInWeiFinal, , ) = minter.getPriceInfo(projectId);
+        selloutAuction(projectId, tokenPriceInWeiFinal);
+
+        uint256 adminBalanceBefore = abAdminAddress.balance;
+        vm.prank(abAdminAddress);
+        minter.withdrawArtistAndAdminRevenues(projectId);
+        (uint256 invocations, uint256 maxInvocations, , , ,) = genArt721CoreV3.projectStateData(projectId);
+        assertEq(invocations, maxInvocations);
+
+        uint256 expectedAdminShare = 
+            (
+                tokenPriceInWeiFinal * (invocations - 2) +
+                tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT + 
+                tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT 
+            )
+            * 
+            genArt721CoreV3.platformProviderPrimarySalesPercentage()/ONE_HUNDRED_PERCENT;
+
+        assertEq(abAdminAddress.balance, adminBalanceBefore + expectedAdminShare);
+
+        uint256 expectedExcessSettlement = discountedPrice1 + discountedPrice2
+            - tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT
+            - tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+        
+        uint256 expectedExcessSettlement2 = tokenPriceInWei2 - tokenPriceInWeiFinal;
+
+        assertEq(expectedExcessSettlement, minter.getProjectExcessSettlementFunds(projectId, customer));
+        assertEq(expectedExcessSettlement2, minter.getProjectExcessSettlementFunds(projectId, customer2));
+
+        uint256 customerETHBalanceBefore = customer.balance;
+        uint256 customer2ETHBalanceBefore = customer2.balance;
+        vm.prank(customer);
+        minter.reclaimProjectExcessSettlementFunds(projectId);
+        vm.prank(customer2);
+        minter.reclaimProjectExcessSettlementFunds(projectId);
+        assertEq(customer.balance, customerETHBalanceBefore+expectedExcessSettlement);
+        assertEq(customer2.balance, customer2ETHBalanceBefore+expectedExcessSettlement2);
+    }
+
+    // admin can claim funds when the price has settled but collection not soldout yet and sales will be going with 
+    // instant sending of funds to admin and users can get settlements correctly
+    function testAdminCanClaimFundsBeforeAuctionSoldoutAfterPriceSettledAndUsersCanGetSettlements() public {
+        activateProject(projectId);
+        setupDefaultAuction(projectId);
+
+        vm.warp(auctionStartTime+1);
+        (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
+        uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
+        uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
+        uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+          
+        vm.startPrank(customer);
+        minter.purchaseTo_M6P{value: discountedPrice1}(customer, projectId, discountToken1);
+        minter.purchaseTo_M6P{value: discountedPrice2}(customer, projectId, discountToken2);
+        vm.stopPrank();
+
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*2);
+        (, uint256 tokenPriceInWei2, , ) = minter.getPriceInfo(projectId);
+        vm.prank(customer2);
+        minter.purchaseTo_M6P{value: tokenPriceInWei2}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
+        
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*4);
+        //Supply is not soldout, but the price has settled at this point
+        (, uint256 tokenPriceInWeiFinal, , ) = minter.getPriceInfo(projectId);
+        assertEq(tokenPriceInWeiFinal, basePrice);
+
+        uint256 adminBalanceBefore = abAdminAddress.balance;
+        vm.prank(abAdminAddress);
+        minter.withdrawArtistAndAdminRevenues(projectId);
+        (uint256 invocations, uint256 maxInvocations, , , ,) = genArt721CoreV3.projectStateData(projectId);
+        assertFalse(invocations == maxInvocations);
+
+        uint256 expectedAdminShare = 
+            (
+                tokenPriceInWeiFinal * (invocations - 2) + //2 discounted tokens
+                tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT + 
+                tokenPriceInWeiFinal * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT 
+            )
+            * 
+            genArt721CoreV3.platformProviderPrimarySalesPercentage()/ONE_HUNDRED_PERCENT;
+
+        uint256 adminBalanceAfterClaimingEarnings = abAdminAddress.balance;
+        assertEq(adminBalanceAfterClaimingEarnings, adminBalanceBefore + expectedAdminShare);
+        
+        assertEq(minter.getProjectExcessSettlementFunds(projectId, customer2), tokenPriceInWei2 - tokenPriceInWeiFinal);
+
+        vm.prank(customer2);
+        minter.purchaseTo_M6P{value: tokenPriceInWeiFinal}(customer2, projectId, ZERO_DISCOUNT_TOKEN);
+        // check funds are being sent to admin with every purchase after withdrawing admin revenues once
+        uint256 expectedImmediateAdminShare = tokenPriceInWeiFinal * 
+            genArt721CoreV3.platformProviderPrimarySalesPercentage()/ONE_HUNDRED_PERCENT;
+
+        assertEq(abAdminAddress.balance, adminBalanceAfterClaimingEarnings + expectedImmediateAdminShare);
+
+    }
 
     // HELPERS
 
@@ -538,8 +768,21 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         //console.log(availableSupply);
 
         vm.startPrank(superWhale);
-        for(uint256 i; i< availableSupply; i++) {
+        for(uint256 i; i < availableSupply; i++) {
             minter.purchaseTo_M6P{value: tokenPriceInWei}(superWhale, _projectId, ZERO_DISCOUNT_TOKEN);
+        }
+        vm.stopPrank();
+    }
+
+    function selloutAuction(uint256 _projectId, uint256 currentPrice) internal {
+        
+        (uint256 invocations, uint256 maxInvocations, , , ,) = genArt721CoreV3.projectStateData(_projectId);
+        uint256 availableSupply = maxInvocations - invocations;
+        //console.log(availableSupply);
+
+        vm.startPrank(superWhale);
+        for(uint256 i; i < availableSupply; i++) {
+            minter.purchaseTo_M6P{value: currentPrice}(superWhale, _projectId, ZERO_DISCOUNT_TOKEN);
         }
         vm.stopPrank();
     }

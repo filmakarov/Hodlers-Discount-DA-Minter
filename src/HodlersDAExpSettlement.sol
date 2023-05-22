@@ -147,8 +147,12 @@ contract HodlersDAExpSettlement is
         // max uint24 still allows for > max project supply of 1 million tokens
         uint24 numPurchased;
     }
-    /// user address => project ID => receipt
+    // user address => project ID => receipt
     mapping(address => mapping(uint256 => Receipt)) receipts;
+
+    // default Discount Collections
+    address manifoldGenesisAddress;
+    address hodlersCollectivePassAddress;
 
     // projectId => discountToken(address+tokenId) => address that used it    
     mapping (uint256 => mapping (uint256 => address)) discountTokensUsed;
@@ -224,7 +228,9 @@ contract HodlersDAExpSettlement is
      */
     constructor(
         address _genArt721Address,
-        address _minterFilter
+        address _minterFilter,
+        address _manifoldGenesisAddress,
+        address _hodlersCollectivePassAddress
     ) ReentrancyGuard() MinterBase(_genArt721Address) {
         genArt721CoreAddress = _genArt721Address;
         // always populate immutable engine contracts, but only use appropriate
@@ -238,6 +244,8 @@ contract HodlersDAExpSettlement is
             minterFilter.genArt721CoreAddress() == _genArt721Address,
             "Illegal contract pairing"
         );
+        manifoldGenesisAddress = _manifoldGenesisAddress;
+        hodlersCollectivePassAddress = _hodlersCollectivePassAddress;
     }
 
     /**
@@ -477,6 +485,12 @@ contract HodlersDAExpSettlement is
             .toUint64();
         _projectConfig.startPrice = _startPrice.toUint128();
         _projectConfig.basePrice = _basePrice.toUint128();
+
+        // Set default Discounts
+        discountCollections[_projectId][manifoldGenesisAddress].discountPercentage = 50;
+        discountCollections[_projectId][manifoldGenesisAddress].minTokenId = 0;
+        discountCollections[_projectId][hodlersCollectivePassAddress].discountPercentage = 25;
+        discountCollections[_projectId][hodlersCollectivePassAddress].minTokenId = 1000;
 
         emit SetAuctionDetails(
             _projectId,

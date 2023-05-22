@@ -79,9 +79,14 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
 
         // Deploy contracts
         vm.startPrank(deployer);
-        minter = new HodlersDAExpSettlement(address(genArt721CoreV3), address(filter));
         manifoldGenesis = new MockDiscountCollection("ManifoldGenesis", "MG");
         HCPass = new MockDiscountCollection("HCPass", "HCP");
+        minter = new HodlersDAExpSettlement(
+            address(genArt721CoreV3), 
+            address(filter),
+            address(manifoldGenesis),
+            address(HCPass)
+        );
         vm.stopPrank();
 
         // Add Minter as Approved to Filter
@@ -91,8 +96,6 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
 
         // Configure Minter
         // Add discounts
-        minter.setDiscountDataForCollection(projectId, address(manifoldGenesis), 50, 0);
-        minter.setDiscountDataForCollection(projectId, address(HCPass), 25, 1000);
         minter.setDelegationRegistry(0x00000000000076A84feF008CDAbe6409d2FE638B);
         vm.stopPrank();
 
@@ -120,14 +123,6 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
 
         assertEq(filter.getMinterForProject(projectId), address(minter));
         assertEq(filter.isApprovedMinter(address(minter)), true);
-
-        (uint256 discountPercentageMG, uint256 minTokenIdMG) = minter.discountCollections(projectId, address(manifoldGenesis));
-        assertEq(discountPercentageMG, 50);
-        assertEq(minTokenIdMG, 0);
-
-        (uint256 discountPercentageHCP, uint256 minTokenIdHCP) = minter.discountCollections(projectId, address(HCPass));
-        assertEq(discountPercentageHCP, 25);
-        assertEq(minTokenIdHCP, 1000);
 
         assertEq(manifoldGenesis.balanceOf(customer), 1);
         assertEq(HCPass.balanceOf(customer), 1);
@@ -444,8 +439,6 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         
         vm.startPrank(0x8cc0019C16bced6891a96d32FF36FeAB4A663a40); //admin
         filter.setMinterForProject(projectId+1, address(minter));
-        minter.setDiscountDataForCollection(projectId+1, address(manifoldGenesis), 50, 0);
-        minter.setDiscountDataForCollection(projectId+1, address(HCPass), 25, 1000);
         vm.stopPrank();
 
         activateProject(projectId+1);
@@ -756,6 +749,14 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
             startPrice,    
             basePrice    
         );
+
+        (uint256 discountPercentageMG, uint256 minTokenIdMG) = minter.discountCollections(projectId, address(manifoldGenesis));
+        assertEq(discountPercentageMG, 50);
+        assertEq(minTokenIdMG, 0);
+
+        (uint256 discountPercentageHCP, uint256 minTokenIdHCP) = minter.discountCollections(projectId, address(HCPass));
+        assertEq(discountPercentageHCP, 25);
+        assertEq(minTokenIdHCP, 1000);
     }
 
     function waitForPriceSettlementAndSelloutAuction(uint256 numberOfDecaysRequiredToSettlePrice, uint256 _projectId) internal {

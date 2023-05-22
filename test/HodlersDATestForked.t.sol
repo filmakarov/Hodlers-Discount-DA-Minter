@@ -52,6 +52,8 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
     uint256 startPrice;
     uint256 basePrice;
 
+    uint256 HCPassLowerBound = 1000000;
+
     uint256 goerliFork;
 
     function setUp() public {
@@ -104,7 +106,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         customer = address(0xdecaf4a11ce);
         vm.deal(customer, 100*1e18);
         manifoldGenesis.mint(customer, 0);
-        HCPass.mint(customer, 1000);
+        HCPass.mint(customer, HCPassLowerBound);
 
         customer2 = address(0xb0bb0bb0b);
         vm.deal(customer2, 100*1e18);
@@ -218,7 +220,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
 
         (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
         uint256 discountedPrice = tokenPriceInWei * (ONE_HUNDRED_PERCENT - 50) / ONE_HUNDRED_PERCENT; // 50% discount  
-        uint256 discountToken = buildDiscountToken(address(HCPass), 1000);  //Provides only 25% discount
+        uint256 discountToken = buildDiscountToken(address(HCPass), HCPassLowerBound);  //Provides only 25% discount
 
         vm.warp(auctionStartTime + 1);
         vm.startPrank(customer);
@@ -258,7 +260,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         uint256 balanceOfCustomerBefore = genArt721CoreV3.balanceOf(customer);
 
         (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
-        uint256 discountToken = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountToken = buildDiscountToken(address(HCPass), HCPassLowerBound);
         uint256 discountPercentage = minter.getDiscountPercentageForTokenForProject(projectId, discountToken);
         uint256 discountedPrice = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage) / ONE_HUNDRED_PERCENT;
           
@@ -301,7 +303,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         address vault = address(0xdeafbeefdeafbeef);
         address hotwallet = address(0xdecafdecaf);
         vm.deal(hotwallet, 1e19);
-        HCPass.mint(vault, 1001);
+        HCPass.mint(vault, HCPassLowerBound+1);
 
         vm.prank(vault);
         delegateCashRegistry.delegateForAll(hotwallet, true);
@@ -310,7 +312,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
 
         (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
         uint256 discountedPrice = tokenPriceInWei * (ONE_HUNDRED_PERCENT - 25) / ONE_HUNDRED_PERCENT; // 25% discount  
-        uint256 discountToken = buildDiscountToken(address(HCPass), 1001);  
+        uint256 discountToken = buildDiscountToken(address(HCPass), HCPassLowerBound+1);  
 
         vm.warp(auctionStartTime + 1);
         vm.prank(hotwallet);
@@ -373,7 +375,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
         uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
         uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
-        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), HCPassLowerBound);
         uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
         uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
           
@@ -405,7 +407,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
         uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
         uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
-        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), HCPassLowerBound);
         uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
         uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
           
@@ -460,7 +462,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
         uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
         uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
-        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), HCPassLowerBound);
         uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
         uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
           
@@ -508,7 +510,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
         uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
         uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
-        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), HCPassLowerBound);
         uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
         uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
           
@@ -559,7 +561,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
         uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
         uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
-        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), HCPassLowerBound);
         uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
         uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
           
@@ -623,7 +625,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
         uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
         uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
-        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), HCPassLowerBound);
         uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
         uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
           
@@ -688,7 +690,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
         uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
         uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
-        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), HCPassLowerBound);
         uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
         uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
           
@@ -767,7 +769,7 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
 
         (uint256 discountPercentageHCP, uint256 minTokenIdHCP) = minter.discountCollections(projectId, address(HCPass));
         assertEq(discountPercentageHCP, 25);
-        assertEq(minTokenIdHCP, 1000);
+        assertEq(minTokenIdHCP, HCPassLowerBound);
     }
 
     function waitForPriceSettlementAndSelloutAuction(uint256 numberOfDecaysRequiredToSettlePrice, uint256 _projectId) internal {

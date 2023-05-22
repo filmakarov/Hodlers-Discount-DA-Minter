@@ -11,8 +11,6 @@ import "@openzeppelin-4.7/contracts/token/ERC721/IERC721.sol";
 
 import "@delegatecash/IDelegationRegistry.sol";
 
-//import {console} from "@std/console.sol";
-
 pragma solidity 0.8.17;
 
 /**
@@ -491,7 +489,7 @@ contract HodlersDAExpSettlement is
         discountCollections[_projectId][manifoldGenesisAddress].discountPercentage = 50;
         discountCollections[_projectId][manifoldGenesisAddress].minTokenId = 0;
         discountCollections[_projectId][hodlersCollectivePassAddress].discountPercentage = 25;
-        discountCollections[_projectId][hodlersCollectivePassAddress].minTokenId = 1000;
+        discountCollections[_projectId][hodlersCollectivePassAddress].minTokenId = 1000000;
 
         emit SetAuctionDetails(
             _projectId,

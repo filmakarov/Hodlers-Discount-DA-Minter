@@ -1218,22 +1218,12 @@ contract HodlersDAExpSettlement is
 
         // EFFECTS
         // calculate the excess settlement funds amount and return
-        uint256 requiredAmountPosted;
-        uint256[] memory discountsUsedByBuyer = discountsUsedPerBuyer[_projectId][_walletAddress];
-
-        for (uint256 i; i < discountsUsedByBuyer.length; ) {
-            requiredAmountPosted = requiredAmountPosted + 
-                            currentSettledTokenPrice * (ONE_HUNDRED_PERCENT - discountsUsedByBuyer[i]) / ONE_HUNDRED_PERCENT;
-            unchecked {
-                i++;
-            }
-        }
-
-        // shouldn't be possible to underflow as numPurchased >= discountsUsedByBuyer.length
-        // prices and amounts are not big enough to overflow
-        unchecked {
-            requiredAmountPosted = requiredAmountPosted + (numPurchased - discountsUsedByBuyer.length) * currentSettledTokenPrice;
-        }
+        uint256 requiredAmountPosted = calculateRequiredAmountPosted(
+            _projectId, 
+            _walletAddress, 
+            currentSettledTokenPrice, 
+            numPurchased
+        );
 
         return receipt.netPosted - requiredAmountPosted;
     }

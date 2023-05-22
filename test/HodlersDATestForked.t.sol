@@ -39,11 +39,13 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
     address deployer;
 
     uint256 projectId;
+    uint256[] projectIds;
 
     address artistAddress;
     address abAdminAddress;
     address customer;
     address customer2;
+    address superWhale;
 
     uint256 auctionStartTime;
     uint256 priceDecayHalfLifeSeconds;
@@ -72,13 +74,14 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         genArt721CoreV3.addProject("TestProject", payable(artistAddress));
         vm.stopPrank();
 
+        vm.prank(artistAddress);
+        genArt721CoreV3.updateProjectMaxInvocations(projectId, 20);
+
         // Deploy contracts
         vm.startPrank(deployer);
-
         minter = new HodlersDAExpSettlement(address(genArt721CoreV3), address(filter));
         manifoldGenesis = new MockDiscountCollection("ManifoldGenesis", "MG");
         HCPass = new MockDiscountCollection("HCPass", "HCP");
-
         vm.stopPrank();
 
         // Add Minter as Approved to Filter
@@ -106,6 +109,9 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
 
         customer2 = address(0xb0bb0bb0b);
         vm.deal(customer2, 100*1e18);
+
+        superWhale = address(0x4a1511e4a1511e);
+        vm.deal(superWhale, 10_000*1e18);
     }
 
     function testSetupSuccessful() public {
@@ -384,8 +390,109 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
     }
 
     // user can get correct settlement amount when buying with discount and deposit after auction soldout
+    function testCanReclaimExcessSettlementFunds() public {
+        activateProject(projectId);
+        setupDefaultAuction(projectId);
 
-    // users can get correct settlement amount when buying with discount and deposit before auction soldout for several projects with one txn
+        vm.warp(auctionStartTime+1);
+        (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
+        uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
+        uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
+        uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+          
+        vm.startPrank(customer);
+        minter.purchaseTo_M6P{value: discountedPrice1}(customer, projectId, discountToken1);
+        minter.purchaseTo_M6P{value: discountedPrice2}(customer, projectId, discountToken2);
+
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*3);
+        minter.purchaseTo_M6P{value: 0}(customer, projectId, ZERO_DISCOUNT_TOKEN);
+        vm.stopPrank();
+
+        uint256 netPosted = discountedPrice1 + discountedPrice2;
+
+        uint256 numberOfDecaysRequiredToSettlePrice = 4;
+        waitForPriceSettlementAndSelloutAuction(numberOfDecaysRequiredToSettlePrice, projectId);
+        (, tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+
+        uint256 expectedExcessSettlement = netPosted
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT
+            - tokenPriceInWei;
+
+        assertEq(expectedExcessSettlement, minter.getProjectExcessSettlementFunds(projectId, customer));
+
+        uint256 customerETHBalanceBefore = customer.balance;
+        vm.prank(customer);
+        minter.reclaimProjectExcessSettlementFunds(projectId);
+        assertEq(customer.balance, customerETHBalanceBefore+expectedExcessSettlement);
+    }
+
+    // users can get correct settlement amount when buying with discount and deposit after auction soldout for several projects with one txn
+    function testCanReclaimExcessSettlementFundsForSeveralProjects() public {
+        activateProject(projectId);
+        setupDefaultAuction(projectId);
+
+        // setup second project
+        vm.startPrank(abAdminAddress);
+        genArt721CoreV3.addProject("TestProject2", payable(artistAddress));
+        vm.stopPrank();
+        vm.prank(artistAddress);
+        genArt721CoreV3.updateProjectMaxInvocations(projectId+1, 20);
+        
+        vm.startPrank(0x8cc0019C16bced6891a96d32FF36FeAB4A663a40); //admin
+        filter.setMinterForProject(projectId+1, address(minter));
+        minter.setDiscountDataForCollection(projectId+1, address(manifoldGenesis), 50, 0);
+        minter.setDiscountDataForCollection(projectId+1, address(HCPass), 25, 1000);
+        vm.stopPrank();
+
+        activateProject(projectId+1);
+        setupDefaultAuction(projectId+1);
+
+        vm.warp(auctionStartTime+1);
+        (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+        uint256 discountToken1 = buildDiscountToken(address(manifoldGenesis), 0);
+        uint256 discountPercentage1 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken1);
+        uint256 discountedPrice1 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT;
+        uint256 discountToken2 = buildDiscountToken(address(HCPass), 1000);
+        uint256 discountPercentage2 = minter.getDiscountPercentageForTokenForProject(projectId, discountToken2);
+        uint256 discountedPrice2 = tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT;
+          
+        vm.startPrank(customer);
+        minter.purchaseTo_M6P{value: discountedPrice1}(customer, projectId, discountToken1);
+        minter.purchaseTo_M6P{value: discountedPrice2}(customer, projectId, discountToken2);
+        minter.purchaseTo_M6P{value: discountedPrice1}(customer, projectId+1, discountToken1);
+        minter.purchaseTo_M6P{value: discountedPrice2}(customer, projectId+1, discountToken2);
+
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*3);
+        minter.purchaseTo_M6P{value: 0}(customer, projectId, ZERO_DISCOUNT_TOKEN);
+        minter.purchaseTo_M6P{value: 0}(customer, projectId+1, ZERO_DISCOUNT_TOKEN);
+        vm.stopPrank();
+
+        uint256 netPosted = discountedPrice1 + discountedPrice2;
+
+        uint256 numberOfDecaysRequiredToSettlePrice = 4;
+        waitForPriceSettlementAndSelloutAuction(numberOfDecaysRequiredToSettlePrice, projectId);
+        waitForPriceSettlementAndSelloutAuction(numberOfDecaysRequiredToSettlePrice, projectId+1);
+        (, tokenPriceInWei, , ) = minter.getPriceInfo(projectId);
+
+        uint256 expectedExcessSettlement = netPosted
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage1) / ONE_HUNDRED_PERCENT
+            - tokenPriceInWei * (ONE_HUNDRED_PERCENT - discountPercentage2) / ONE_HUNDRED_PERCENT
+            - tokenPriceInWei;
+
+        assertEq(expectedExcessSettlement, minter.getProjectExcessSettlementFunds(projectId, customer));
+        assertEq(expectedExcessSettlement, minter.getProjectExcessSettlementFunds(projectId+1, customer));
+
+        uint256 customerETHBalanceBefore = customer.balance;
+        projectIds.push(projectId);
+        projectIds.push(projectId+1);
+        vm.prank(customer);
+        minter.reclaimProjectsExcessSettlementFunds(projectIds);
+        assertEq(customer.balance, customerETHBalanceBefore+expectedExcessSettlement*2);
+    }
 
     // users can claim settlements several times - before price has settled and then the rest after is has settled
 
@@ -394,7 +501,6 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
     // admin can claim funds when collection is soldout higher that base price, and users can get setllements correctly
 
     // admin can claim funds when the price has settled but collection not soldout yet and sales will be going with instant sending of funds to admin and users can get settlements correctly
-
 
 
     // HELPERS
@@ -420,6 +526,22 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
             startPrice,    
             basePrice    
         );
+    }
+
+    function waitForPriceSettlementAndSelloutAuction(uint256 numberOfDecaysRequiredToSettlePrice, uint256 _projectId) internal {
+        vm.warp(auctionStartTime + priceDecayHalfLifeSeconds*numberOfDecaysRequiredToSettlePrice);
+        (, uint256 tokenPriceInWei, , ) = minter.getPriceInfo(_projectId);
+        assertEq(tokenPriceInWei, basePrice);
+
+        (uint256 invocations, uint256 maxInvocations, , , ,) = genArt721CoreV3.projectStateData(_projectId);
+        uint256 availableSupply = maxInvocations - invocations;
+        //console.log(availableSupply);
+
+        vm.startPrank(superWhale);
+        for(uint256 i; i< availableSupply; i++) {
+            minter.purchaseTo_M6P{value: tokenPriceInWei}(superWhale, _projectId, ZERO_DISCOUNT_TOKEN);
+        }
+        vm.stopPrank();
     }
 
     function buildDiscountToken(address discountCollection, uint256 tokenId) public pure returns (uint256) {

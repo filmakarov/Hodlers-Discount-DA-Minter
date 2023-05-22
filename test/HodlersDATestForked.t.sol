@@ -329,6 +329,21 @@ contract HodlersDutchAuctionWithDiscountsTestForked is Test {
         minter.setDiscountDataForCollection(projectId, address(0x15a7d047), 25, 100);
     }
 
+     function testAdminCanSetAndChangeDiscounts() public {
+        vm.startPrank(abAdminAddress);
+        minter.setDiscountDataForCollection(projectId, address(0x15a7d047), 25, 100);
+        minter.setDiscountDataForCollection(projectId, address(manifoldGenesis), 99, 99);
+        vm.stopPrank();
+        
+        (uint256 discountPercentageRandom, uint256 minTokenIdRandom) = minter.discountCollections(projectId, address(0x15a7d047));
+        assertEq(discountPercentageRandom, 25);
+        assertEq(minTokenIdRandom, 100);
+        
+        (uint256 discountPercentageMG, uint256 minTokenIdMG) = minter.discountCollections(projectId, address(manifoldGenesis));
+        assertEq(discountPercentageMG, 99);
+        assertEq(minTokenIdMG, 99);
+    }
+
     function testUserCanBuyWithDeposit() public {
         activateProject(projectId);
         setupDefaultAuction(projectId);
